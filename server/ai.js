@@ -1,93 +1,19 @@
-import { normalizeRole, normalizeSkill, canonicalSkills } from "./taxonomy.js";
+import { normalizeRole, normalizeSkill, SKILL_ALIASES } from "./taxonomy.js";
 
 const STOP = new Set(["the", "and", "for", "with", "from", "that", "this", "into", "your", "you", "are", "our", "will", "have", "has", "not", "but", "can", "who", "all", "any", "their", "they", "them", "about", "work", "working", "using", "use", "job", "role", "intern", "internship"]);
-
-function normalizeText(input) { return String(input || "").toLowerCase().replace(/[^a-z0-9+#.\-\s]/g, " "); }
+function normalizeText(input) { return String(input || "").toLowerCase().replace(/[^a-z0-9+#.\-\s/]/g, " "); }
 function tokens(input) { return normalizeText(input).split(/\s+/).filter(Boolean).filter((x) => !STOP.has(x)).map((x) => x.replace(/^[-.]+|[-.]+$/g, "")).filter((x) => x.length > 1); }
 function tf(text) { const counts = new Map(); for (const token of tokens(text)) counts.set(token, (counts.get(token) || 0) + 1); return counts; }
-export function cosineSimilarity(aText, bText) {
-  const a = tf(aText); const b = tf(bText); if (!a.size || !b.size) return 0; const vocab = new Set([...a.keys(), ...b.keys()]); let dot = 0; let na = 0; let nb = 0;
-  for (const term of vocab) { const av = a.get(term) || 0; const bv = b.get(term) || 0; dot += av * bv; na += av * av; nb += bv * bv; }
-  return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
-}
-
-const aliasPatterns = canonicalSkills().map((skill) => ({ skill, words: [skill, skill.replace(/\s+/g, ""), normalizeSkill(skill)] }));
-function aliasHits(text) {
-  const n = normalizeText(text); const hits = [];
-  for (const { skill, words } of aliasPatterns) if (words.some((word) => word && n.includes(word))) hits.push(skill);
-  return [...new Set(hits)];
-}
+export function cosineSimilarity(aText, bText) { const a = tf(aText); const b = tf(bText); if (!a.size || !b.size) return 0; const vocab = new Set([...a.keys(), ...b.keys()]); let dot = 0; let na = 0; let nb = 0; for (const term of vocab) { const av = a.get(term) || 0; const bv = b.get(term) || 0; dot += av * bv; na += av * av; nb += bv * bv; } return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0; }
+const aliasPatterns = Object.entries(SKILL_ALIASES).map(([skill, aliases]) => ({ skill, aliases }));
+function aliasHits(text) { const n = normalizeText(text); const hits = []; for (const { skill, aliases } of aliasPatterns) if (aliases.some((alias) => n.includes(normalizeText(alias)))) hits.push(skill); return [...new Set(hits)]; }
 export function extractSkills(text) { return aliasHits(text).map(normalizeSkill); }
-
-const rolePatterns = {
-  frontend: ["frontend developer", "front end developer", "react developer", "ui developer", "frontend"],
-  backend: ["backend developer", "back end developer", "server developer", "api developer", "backend"],
-  fullstack: ["full stack", "fullstack", "full-stack"],
-  "data analyst": ["data analyst", "business analyst", "analytics"],
-  "data scientist": ["data scientist", "data science"],
-  "ml engineer": ["machine learning engineer", "ml engineer", "ai engineer"],
-  "software engineer": ["software engineer", "software developer", "sde"],
-  "ui/ux designer": ["ui/ux", "ux designer", "product designer"],
-  "product intern": ["product manager", "product intern", "product"],
-  "cloud/devops": ["devops", "cloud engineer", "cloud/devops", "site reliability"],
-};
+const rolePatterns = { frontend: ["frontend developer", "front end developer", "react developer", "ui developer", "frontend"], backend: ["backend developer", "back end developer", "server developer", "api developer", "backend"], fullstack: ["full stack", "fullstack", "full-stack"], "data analyst": ["data analyst", "business analyst", "analytics"], "data scientist": ["data scientist", "data science"], "ml engineer": ["machine learning engineer", "ml engineer", "ai engineer"], "software engineer": ["software engineer", "software developer", "sde"], "ui/ux designer": ["ui/ux", "ux designer", "product designer"], "product intern": ["product manager", "product intern", "product"], "cloud/devops": ["devops", "cloud engineer", "cloud/devops", "site reliability"] };
 export function detectRoles(text) { const n = normalizeText(text); return Object.entries(rolePatterns).filter(([, patterns]) => patterns.some((p) => n.includes(p))).map(([role]) => normalizeRole(role)); }
-
-function extractDurationMonths(text, patterns, fallback = 0) {
-  const n = normalizeText(text);
-  for (const { pattern, years } of patterns) {
-    const match = n.match(pattern); if (!match) continue;
-    const value = Number(match[1]); return years ? value * 12 : value;
-  }
-  return fallback;
-}
-
-export function parseStudentText(text) {
-  const skills = extractSkills(text); const roles = detectRoles(text);
-  const experienceMonths = extractDurationMonths(text, [{ pattern: /(\d+)\s*months?/, years: false }, { pattern: /(\d+)\s*years?/, years: true }]);
-  const interests = [...new Set([...roles, ...skills.filter((x) => ["ai", "product", "cloud", "data analysis", "ui/ux"].includes(x))])];
-  return { skills, roles, interests, experienceMonths, confidence: Math.min(0.95, 0.45 + skills.length * 0.08 + roles.length * 0.06) };
-}
-
-export function parseJobText(text) {
-  const skills = extractSkills(text); const roles = detectRoles(text);
-  const minExperienceMonths = extractDurationMonths(text, [
-    { pattern: /(?:minimum|min)\s*(\d+)\s*months?/, years: false },
-    { pattern: /(\d+)\s*months?\s*(?:of\s*)?experience/, years: false },
-    { pattern: /(\d+)\s*years?\s*(?:of\s*)?experience/, years: true },
-  ]);
-  return { skills, roles, interests: roles, minExperienceMonths, confidence: Math.min(0.96, 0.5 + skills.length * 0.07 + roles.length * 0.05) };
-}
-
-export function semanticSimilarity(aText, bText) {
-  const raw = cosineSimilarity(aText, bText);
-  const aAliases = new Set(extractSkills(aText)); const bAliases = new Set(extractSkills(bText)); const union = new Set([...aAliases, ...bAliases]);
-  let overlap = 0; for (const item of aAliases) if (bAliases.has(item)) overlap++;
-  const concept = union.size ? overlap / union.size : 0;
-  return Math.min(1, raw * 0.45 + concept * 0.55);
-}
-
-export function skillpulse(student, students, opportunities) {
-  const target = new Set((student.skills || []).map(normalizeSkill));
-  const similar = students.map((candidate) => { const other = new Set((candidate.skills || []).map(normalizeSkill)); let common = 0; for (const skill of target) if (other.has(skill)) common++; const union = new Set([...target, ...other]).size || 1; return { candidate, similarity: common / union }; }).filter((x) => x.candidate.id !== student.id && x.similarity >= 0.45);
-  const population = students.length || 1;
-  const candidateSkills = [...new Set(opportunities.flatMap((o) => (o.skills || []).map(normalizeSkill)))];
-  const signals = candidateSkills.map((skill) => { const users = students.filter((s) => (s.skills || []).map(normalizeSkill).includes(skill)).length; const demand = opportunities.filter((o) => (o.skills || []).map(normalizeSkill).includes(skill)).length / (opportunities.length || 1); const rarity = 1 - users / population; const owned = target.has(skill); const fit = semanticSimilarity(skill, [...target].join(" ")); return { skill, rarity: Math.round(rarity * 100), demand: Math.round(demand * 100), opportunityScore: Math.round(rarity * (0.5 + demand * 0.5) * (owned ? 0.2 : Math.max(0.2, fit)) * 100) }; }).sort((a, b) => b.opportunityScore - a.opportunityScore);
-  const common = [...target].map((skill) => ({ skill, rarity: Math.round((1 - students.filter((s) => (s.skills || []).map(normalizeSkill).includes(skill)).length / population) * 100) })).sort((a, b) => a.rarity - b.rarity);
-  return { similarStudents: similar.length, population: students.length, commonSkills: common.slice(0, 5), differentiators: common.slice(-5).reverse(), suggestedSkills: signals.filter((x) => !target.has(x.skill)).slice(0, 5) };
-}
-
-export function careerGap(student, targetRole, opportunities) {
-  const target = normalizeRole(targetRole); const relevant = opportunities.filter((o) => normalizeRole(o.title) === target || (o.roles || []).map(normalizeRole).includes(target));
-  const wanted = [...new Set(relevant.flatMap((o) => (o.skills || []).map(normalizeSkill)))]; const have = new Set((student.skills || []).map(normalizeSkill));
-  return { targetRole: target, sampleRoles: relevant.length, currentSkills: [...have], missingSkills: wanted.filter((skill) => !have.has(skill)).slice(0, 8) };
-}
-
-export function interviewQuestions(opportunity, student) {
-  const role = opportunity?.title || "this role"; const skills = opportunity?.skills || [];
-  const questions = [`Why are you interested in ${role}?`, `Walk me through a project where you used ${skills[0] || "your main skill"}.`, `How would you debug a problem in a ${role.toLowerCase()} task?`, `What would you improve in your current technical skill set for this role?`, "Tell me about a time you had to learn something quickly.", "How would you approach collaborating with a teammate when you disagree?"];
-  if (skills.map(normalizeSkill).includes("sql")) questions.push("Write a SQL query to find the top 3 records by a metric.");
-  if (skills.map(normalizeSkill).includes("python")) questions.push("What is the difference between a list and a set in Python, and when would you choose each?");
-  if (skills.map(normalizeSkill).includes("react")) questions.push("What causes a React component to re-render, and how would you control unnecessary work?");
-  return questions.slice(0, 8).map((question, i) => ({ id: i + 1, question }));
-}
+function extractDurationMonths(text, patterns, fallback = 0) { const n = normalizeText(text); for (const { pattern, years } of patterns) { const match = n.match(pattern); if (match) return years ? Number(match[1]) * 12 : Number(match[1]); } return fallback; }
+export function parseStudentText(text) { const skills = extractSkills(text); const roles = detectRoles(text); const experienceMonths = extractDurationMonths(text, [{ pattern: /(\d+)\s*months?/, years: false }, { pattern: /(\d+)\s*years?/, years: true }]); const interests = [...new Set([...roles, ...skills.filter((x) => ["ai", "product", "cloud", "data analysis", "ui/ux"].includes(x))])]; return { skills, roles, interests, experienceMonths, confidence: Math.min(0.95, 0.45 + skills.length * 0.08 + roles.length * 0.06) }; }
+export function parseJobText(text) { const skills = extractSkills(text); const roles = detectRoles(text); const minExperienceMonths = extractDurationMonths(text, [{ pattern: /(?:minimum|min)\s*(\d+)\s*months?/, years: false }, { pattern: /(\d+)\s*months?\s*(?:of\s*)?experience/, years: false }, { pattern: /(\d+)\s*years?\s*(?:of\s*)?experience/, years: true }]); return { skills, roles, interests: roles, minExperienceMonths, confidence: Math.min(0.96, 0.5 + skills.length * 0.07 + roles.length * 0.05) }; }
+export function semanticSimilarity(aText, bText) { const raw = cosineSimilarity(aText, bText); const aAliases = new Set(extractSkills(aText)); const bAliases = new Set(extractSkills(bText)); const union = new Set([...aAliases, ...bAliases]); let overlap = 0; for (const item of aAliases) if (bAliases.has(item)) overlap++; const concept = union.size ? overlap / union.size : 0; return Math.min(1, raw * 0.45 + concept * 0.55); }
+export function skillpulse(student, students, opportunities) { const target = new Set((student.skills || []).map(normalizeSkill)); const similar = students.map((candidate) => { const other = new Set((candidate.skills || []).map(normalizeSkill)); let common = 0; for (const skill of target) if (other.has(skill)) common++; const union = new Set([...target, ...other]).size || 1; return { candidate, similarity: common / union }; }).filter((x) => x.candidate.id !== student.id && x.similarity >= 0.45); const population = students.length || 1; const candidateSkills = [...new Set(opportunities.flatMap((o) => (o.skills || []).map(normalizeSkill)))]; const signals = candidateSkills.map((skill) => { const users = students.filter((s) => (s.skills || []).map(normalizeSkill).includes(skill)).length; const demand = opportunities.filter((o) => (o.skills || []).map(normalizeSkill).includes(skill)).length / (opportunities.length || 1); const rarity = 1 - users / population; const owned = target.has(skill); const fit = semanticSimilarity(skill, [...target].join(" ")); return { skill, rarity: Math.round(rarity * 100), demand: Math.round(demand * 100), opportunityScore: Math.round(rarity * (0.5 + demand * 0.5) * (owned ? 0.2 : Math.max(0.2, fit)) * 100) }; }).sort((a, b) => b.opportunityScore - a.opportunityScore); const common = [...target].map((skill) => ({ skill, rarity: Math.round((1 - students.filter((s) => (s.skills || []).map(normalizeSkill).includes(skill)).length / population) * 100) })).sort((a, b) => a.rarity - b.rarity); return { similarStudents: similar.length, population: students.length, commonSkills: common.slice(0, 5), differentiators: common.slice(-5).reverse(), suggestedSkills: signals.filter((x) => !target.has(x.skill)).slice(0, 5) }; }
+export function careerGap(student, targetRole, opportunities) { const target = normalizeRole(targetRole); const relevant = opportunities.filter((o) => normalizeRole(o.title).includes(target) || (o.roles || []).map(normalizeRole).includes(target)); const wanted = [...new Set(relevant.flatMap((o) => (o.skills || []).map(normalizeSkill)))]; const have = new Set((student.skills || []).map(normalizeSkill)); return { targetRole: target, sampleRoles: relevant.length, currentSkills: [...have], missingSkills: wanted.filter((skill) => !have.has(skill)).slice(0, 8) }; }
+export function interviewQuestions(opportunity, student) { const role = opportunity?.title || "this role"; const skills = opportunity?.skills || []; const questions = [`Why are you interested in ${role}?`, `Walk me through a project where you used ${skills[0] || "your main skill"}.`, `How would you debug a problem in a ${role.toLowerCase()} task?`, `What would you improve in your current technical skill set for this role?`, "Tell me about a time you had to learn something quickly.", "How would you approach collaborating with a teammate when you disagree?"]; if (skills.map(normalizeSkill).includes("sql")) questions.push("Write a SQL query to find the top 3 records by a metric."); if (skills.map(normalizeSkill).includes("python")) questions.push("What is the difference between a list and a set in Python, and when would you choose each?"); if (skills.map(normalizeSkill).includes("react")) questions.push("What causes a React component to re-render, and how would you control unnecessary work?"); return questions.slice(0, 8).map((question, i) => ({ id: i + 1, question })); }
