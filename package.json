@@ -1,1 +1,13 @@
-{"name":"student-skill-matcher","version":"1.0.0","private":true,"description":"Hackathon-ready Student Skill Matcher for SDG 8.","type":"module","scripts":{"start":"node server/index.js","dev":"node server/index.js","test":"node --test tests/matcher.test.js","check":"npm test"}}
+{
+  "name": "student-skill-matcher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hackathon-ready Student Skill Matcher for SDG 8.",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "node --test tests/matcher.test.js",
+    "check": "npm test"
+  }
+}
