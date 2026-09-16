@@ -1,1 +1,21 @@
-{"name":"student-skill-matcher","version":"1.0.0","private":true,"description":"Hackathon-ready Student Skill Matcher for SDG 8.","type":"module","scripts":{"start":"node server/index.js","dev":"node server/index.js","test":"node --test tests/matcher.test.js","check":"npm test && node --check server/index.js && node --check server/matcher.js && node --check server/ai.js && node --check server/db.js && node --check server/mongodb.js && node --check client/app.js && node --check client/profile.js"},"dependencies":{"cors":"^2.8.6","dotenv":"^17.4.2","express":"^5.2.1","firebase":"^12.19.0","firebase-admin":"^14.4.0","mongodb":"^7.6.0"},"devDependencies":{"vite":"^8.3.0"}}
+{
+  "name": "student-skill-matcher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SkillBridge — hackathon Student Skill Matcher for SDG 8.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server/dev.js",
+    "dev": "node --watch server/dev.js",
+    "prod": "node server/app.js",
+    "test": "node --test tests/*.test.js",
+    "check": "npm test && node --check server/app.js && node --check server/auth.js && node --check server/http.js && node --check server/matcher.js && node --check server/ai.js && node --check server/db.js && node --check server/mongodb.js && node --check server/recommendations.js && node --check server/taxonomy.js && node --check client/main.js && node --check client/firebase.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "firebase": "^12.19.0",
+    "firebase-admin": "^14.4.0",
+    "mongodb": "^7.6.0"
+  }
+}
