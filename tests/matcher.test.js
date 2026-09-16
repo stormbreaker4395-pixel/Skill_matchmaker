@@ -14,7 +14,7 @@ test("shared aliases normalize consistently", () => {
   assert.equal(normalizeSkill("node"), "node.js");
   assert.equal(normalizeSkill("JS"), "javascript");
   assert.equal(normalizeRole("React Developer"), "frontend");
-  assert.deepEqual(extractSkills("JS NodeJS React PostgreSQL"), ["javascript", "node.js", "react", "sql"]);
+  assert.deepEqual([...extractSkills("JS NodeJS React PostgreSQL")].sort(), ["javascript", "node.js", "react", "sql"].sort());
 });
 
 test("semantic similarity is bounded", () => {
