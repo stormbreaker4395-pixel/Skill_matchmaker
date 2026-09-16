@@ -8,9 +8,9 @@
   "scripts": {
     "start": "node server/dev.js",
     "dev": "node --watch server/dev.js",
-    "prod": "node server/app.js",
+    "prod": "node server/prod.js",
     "test": "node --test tests/*.test.js",
-    "check": "npm test && node --check server/app.js && node --check server/auth.js && node --check server/http.js && node --check server/matcher.js && node --check server/ai.js && node --check server/db.js && node --check server/mongodb.js && node --check server/recommendations.js && node --check server/taxonomy.js && node --check client/main.js && node --check client/firebase.js"
+    "check": "npm test && node --check server/app.js && node --check server/auth.js && node --check server/http.js && node --check server/matcher.js && node --check server/ai.js && node --check server/db.js && node --check server/mongodb.js && node --check server/recommendations.js && node --check server/taxonomy.js && node --check server/prod.js && node --check server/dev.js && node --check client/main.js && node --check client/firebase.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
