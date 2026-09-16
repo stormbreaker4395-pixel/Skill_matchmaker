@@ -1,143 +1,18 @@
-const RELATED = {
-  javascript: ["react", "node.js", "typescript", "express"],
-  react: ["javascript", "next.js", "frontend", "ui/ux"],
-  "node.js": ["javascript", "express", "backend", "api"],
-  python: ["data analysis", "machine learning", "pandas", "flask"],
-  "machine learning": [
-    "python",
-    "ai",
-    "data analysis",
-    "tensorflow",
-    "pytorch",
-  ],
-  sql: ["database", "mysql", "postgresql", "sqlite"],
-  figma: ["ui/ux", "product design", "wireframing"],
-  "ui/ux": ["figma", "product design", "wireframing"],
-  "data analysis": ["python", "sql", "pandas", "excel"],
-  cloud: ["aws", "azure", "gcp", "devops"],
-  aws: ["cloud", "devops"],
-  git: ["github", "version control", "open source"],
-  communication: ["presentation", "teamwork", "collaboration"],
-  product: ["product management", "research", "analytics"],
-};
-function cleanList(values) {
-  return [
-    ...new Set(
-      (values || []).map((v) => String(v).trim().toLowerCase()).filter(Boolean),
-    ),
-  ];
-}
-function jaccard(a, b) {
-  const A = new Set(cleanList(a)),
-    B = new Set(cleanList(b));
-  if (!A.size || !B.size) return 0;
-  let n = 0;
-  for (const x of A) if (B.has(x)) n++;
-  return n / new Set([...A, ...B]).size;
-}
-function relatedOverlap(studentSkills, requiredSkills) {
-  const student = cleanList(studentSkills),
-    required = cleanList(requiredSkills);
-  if (!required.length) return 0;
-  let matched = 0;
-  for (const req of required) {
-    if (student.includes(req)) continue;
-    const aliases = RELATED[req] || [];
-    if (aliases.some((alias) => student.includes(alias))) matched++;
-  }
-  return matched / required.length;
-}
-function keywordSimilarity(student, opportunity) {
-  const source = cleanList([
-    ...(student.skills || []),
-    ...(student.interests || []),
-    student.experience || "",
-  ]);
-  const target = cleanList([
-    opportunity.title,
-    opportunity.description,
-    ...(opportunity.skills || []),
-    ...(opportunity.interests || []),
-  ]);
-  return jaccard(source, target);
-}
-function experienceFit(studentMonths = 0, requiredMonths = 0) {
-  if (!requiredMonths) return 1;
-  if (studentMonths >= requiredMonths) return 1;
-  return Math.max(0, studentMonths / requiredMonths);
-}
-function workModeFit(studentMode, opportunityMode) {
-  if (!studentMode || !opportunityMode || opportunityMode === "Flexible")
-    return 1;
-  return studentMode.toLowerCase() === opportunityMode.toLowerCase() ? 1 : 0.25;
-}
-function matchStudentToOpportunity(student, opportunity) {
-  const skills = cleanList(student.skills),
-    required = cleanList(opportunity.skills),
-    interests = cleanList(student.interests),
-    targetInterests = cleanList(opportunity.interests);
-  const exactSkill = required.length
-      ? skills.filter((s) => required.includes(s)).length / required.length
-      : 0,
-    relatedSkill = relatedOverlap(skills, required),
-    interest = jaccard(interests, targetInterests),
-    experience = experienceFit(
-      Number(student.experienceMonths || 0),
-      Number(opportunity.minExperienceMonths || 0),
-    ),
-    mode = workModeFit(student.preferredMode, opportunity.mode),
-    text = keywordSimilarity(student, opportunity);
-  const components = {
-    exactSkill: Math.round(exactSkill * 100),
-    relatedSkill: Math.round(relatedSkill * 100),
-    interest: Math.round(interest * 100),
-    experience: Math.round(experience * 100),
-    workMode: Math.round(mode * 100),
-    textSimilarity: Math.round(text * 100),
-  };
-  const score = Math.round(
-    exactSkill * 50 +
-      relatedSkill * 15 +
-      interest * 15 +
-      experience * 10 +
-      mode * 5 +
-      text * 5,
-  );
-  const reasons = [];
-  const exactMatches = required.filter((s) => skills.includes(s)),
-    relatedMatches = required.filter(
-      (s) =>
-        !skills.includes(s) &&
-        (RELATED[s] || []).some((a) => skills.includes(a)),
-    );
-  if (exactMatches.length)
-    reasons.push(
-      `Matched ${exactMatches.length} of ${required.length} required skills`,
-    );
-  if (relatedMatches.length)
-    reasons.push(
-      `Related skills helped: ${relatedMatches.slice(0, 2).join(", ")}`,
-    );
-  if (components.interest >= 50)
-    reasons.push(`Strong interest overlap (${components.interest}%)`);
-  if (components.experience === 100) reasons.push("Experience requirement met");
-  if (components.workMode === 100) reasons.push("Work mode preference aligned");
-  if (!reasons.length)
-    reasons.push("Baseline match from the profile and opportunity text");
-  return { score, components, reasons };
-}
-function rankMatches(student, opportunities) {
-  return opportunities
-    .map((opportunity) => ({
-      opportunity,
-      ...matchStudentToOpportunity(student, opportunity),
-    }))
-    .sort((a, b) => b.score - a.score);
-}
-export {
-  cleanList,
-  jaccard,
-  relatedOverlap,
-  matchStudentToOpportunity,
-  rankMatches,
-};
+const RELATED={javascript:["react","node.js","typescript","express"],react:["javascript","next.js","frontend","ui/ux"],"node.js":["javascript","express","backend","api"],python:["data analysis","machine learning","pandas","flask"],"machine learning":["python","ai","data analysis","tensorflow","pytorch"],sql:["database","mysql","postgresql","sqlite"],figma:["ui/ux","product design","wireframing"],"ui/ux":["figma","product design","wireframing"],"data analysis":["python","sql","pandas","excel"],cloud:["aws","azure","gcp","devops"],aws:["cloud","devops"],git:["github","version control","open source"],communication:["presentation","teamwork","collaboration"],product:["product management","research","analytics"]};
+const ROLE_ALIASES={frontend:["frontend","front end","react developer","ui developer"],backend:["backend","back end","node developer","api developer"],fullstack:["full stack","fullstack","full-stack"],"data analyst":["data analyst","analytics","business analyst"],"data scientist":["data scientist","data science"],"ml engineer":["ml engineer","machine learning engineer","ai engineer"],"software engineer":["software engineer","software developer","sde"],"ui/ux designer":["ui/ux","ux designer","product designer"],"cloud/devops":["cloud","devops","site reliability"]};
+function cleanList(v){return[...new Set((v||[]).map(x=>String(x).trim().toLowerCase()).filter(Boolean))];}
+function jaccard(a,b){const A=new Set(cleanList(a)),B=new Set(cleanList(b));if(!A.size||!B.size)return 0;let n=0;for(const x of A)if(B.has(x))n++;return n/new Set([...A,...B]).size;}
+function roleFit(studentRoles,opportunityRoles){const a=cleanList(studentRoles),b=cleanList(opportunityRoles);if(!b.length)return 0;let hits=0;for(const role of a)if(b.includes(role)||((ROLE_ALIASES[role]||[]).some(x=>b.includes(x))))hits++;return Math.min(1,hits/Math.max(1,b.length));}
+function relatedOverlap(studentSkills,requiredSkills){const s=cleanList(studentSkills),r=cleanList(requiredSkills);if(!r.length)return 0;let hits=0;for(const req of r){if(s.includes(req))continue;if((RELATED[req]||[]).some(x=>s.includes(x)))hits++;}return hits/r.length;}
+function experienceFit(studentMonths=0,requiredMonths=0){if(!requiredMonths)return 1;return studentMonths>=requiredMonths?1:Math.max(0,studentMonths/requiredMonths);}
+function workModeFit(studentMode,opportunityMode){if(!studentMode||!opportunityMode||opportunityMode.toLowerCase()==="flexible")return 1;return studentMode.toLowerCase()===opportunityMode.toLowerCase()?1:0.2;}
+function educationFit(student,o){if(!o.targetYears?.length)return 1;return o.targetYears.map(Number).includes(Number(student.year))?1:0.35;}
+function evidenceFit(student,required){const projects=(student.projects||[]).map(p=>String(p.title||p.description||p).toLowerCase()).join(" ");const experience=(student.experience||[]).map(p=>String(p.title||p.description||p).toLowerCase()).join(" ");let hit=0;for(const skill of required){const s=String(skill).toLowerCase();if(projects.includes(s))hit+=0.55;if(experience.includes(s))hit+=0.45;}return required.length?Math.min(1,hit/required.length):0;}
+function textScore(student,opportunity){const source=cleanList([...(student.skills||[]),...(student.interests||[]),...(student.roles||[]),student.headline,student.bio,...(student.preferredLocations||[])]);const target=cleanList([opportunity.title,opportunity.description,...(opportunity.skills||[]),...(opportunity.interests||[]),...(opportunity.roles||[]),opportunity.location]);return jaccard(source,target);}
+function matchStudentToOpportunity(student,opportunity){const skills=cleanList(student.skills),required=cleanList(opportunity.skills),interest=jaccard(student.interests,opportunity.interests),exact=required.length?skills.filter(x=>required.includes(x)).length/required.length:0,related=relatedOverlap(skills,required),experience=experienceFit(Number(student.experienceMonths||0),Number(opportunity.minExperienceMonths||0)),mode=workModeFit(student.preferredMode,opportunity.mode),education=educationFit(student,opportunity),roles=roleFit(student.roles,opportunity.roles),evidence=evidenceFit(student,required),text=textScore(student,opportunity);
+const eligible=experience>=0.5&&education>=0.35;
+const score=Math.round((exact*.32+related*.12+interest*.12+experience*.10+mode*.06+education*.06+roles*.10+evidence*.07+text*.05)*100);
+const components={exactSkill:Math.round(exact*100),relatedSkill:Math.round(related*100),interest:Math.round(interest*100),experience:Math.round(experience*100),workMode:Math.round(mode*100),education:Math.round(education*100),roleFit:Math.round(roles*100),evidence:Math.round(evidence*100),textSimilarity:Math.round(text*100)};
+const exactMatches=required.filter(x=>skills.includes(x));const relatedMatches=required.filter(x=>!skills.includes(x)&&(RELATED[x]||[]).some(a=>skills.includes(a)));const gaps=required.filter(x=>!skills.includes(x));const reasons=[];if(exactMatches.length)reasons.push(`${exactMatches.length} required skills matched`);if(relatedMatches.length)reasons.push(`Related skills cover ${relatedMatches.length} more`);if(roles>=.5)reasons.push("Target role aligned");if(education===1)reasons.push(`Year ${student.year} fits the target cohort`);if(evidence>=.35)reasons.push("Projects/experience support the required skills");if(mode===1)reasons.push("Work mode matches");if(!reasons.length)reasons.push("Profile and role text provide a partial match");return{eligible,score,components,reasons,gaps,explainability:{weights:{exactSkill:32,relatedSkill:12,interest:12,experience:10,workMode:6,education:6,roleFit:10,evidence:7,textSimilarity:5}}};}
+function rankMatches(student,opportunities){return opportunities.map(opportunity=>({opportunity,...matchStudentToOpportunity(student,opportunity)})).sort((a,b)=>Number(b.eligible)-Number(a.eligible)||b.score-a.score);}
+export{cleanList,jaccard,relatedOverlap,matchStudentToOpportunity,rankMatches};
