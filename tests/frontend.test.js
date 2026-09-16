@@ -10,8 +10,8 @@ test("frontend entrypoint is the single main application", () => {
   assert.doesNotMatch(mainHtml, /profile\.js|candidate-optin\.js|org-tools\.js|app\.js/);
 });
 
-test("frontend no longer uses DOM polling or raw dynamic backend interpolation patterns", () => {
+test("frontend no longer uses DOM polling and has shared escaping/auth hooks", () => {
   assert.doesNotMatch(mainJs, /setInterval\s*\(/);
-  assert.match(mainJs, /function esc\(/);
+  assert.match(mainJs, /const esc\s*=\s*\(/);
   assert.match(mainJs, /Authorization/);
 });
