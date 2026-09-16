@@ -4,7 +4,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  connectMongo,
   createOpportunity,
   createStudent,
   getOpportunity,
@@ -14,6 +13,7 @@ import {
   seedDatabase,
   updateStudent,
 } from "./db.js";
+import { connectMongo } from "./mongodb.js";
 import { rankMatches } from "./matcher.js";
 
 const __filename = fileURLToPath(import.meta.url);
