@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "./mongodb.js";
 import { normalizeCompany, normalizeList, normalizeRole } from "./taxonomy.js";
+import { demoSeed } from "./demo-seed.js";
 
 const cleanText = (value) => String(value || "").trim();
 const newId = (prefix) => `${prefix}-${randomUUID()}`;
@@ -70,14 +71,34 @@ function normalizeStudent(data, uid, current = {}) {
 }
 
 async function safeIndex(collection, spec, options) { try { await collection.createIndex(spec, options); } catch { /* existing indexes or local DB */ } }
+async function ensureSeeded(collection, docs, key = "id") {
+  if (!docs?.length) return;
+  const keys = docs.map((doc) => doc[key]).filter(Boolean);
+  if (!keys.length) return;
+  const existing = new Set((await collection.find({ [key]: { $in: keys } }, { projection: { [key]: 1 } }).toArray()).map((doc) => String(doc[key])));
+  const missing = docs.filter((doc) => doc[key] && !existing.has(String(doc[key])));
+  if (missing.length) await collection.insertMany(missing, { ordered: true });
+}
 
 export async function seedDatabase() {
   const db = getDb(); const students = db.collection("students"); const opportunities = db.collection("opportunities"); const organizations = db.collection("organizations");
-  if (await students.countDocuments() === 0) await students.insertMany(initial.students);
-  if (await opportunities.countDocuments() === 0) await opportunities.insertMany(initial.opportunities);
-  if (await organizations.countDocuments() === 0) await organizations.insertMany(initial.organizations);
+  await ensureSeeded(students, initial.students);
+  await ensureSeeded(opportunities, initial.opportunities);
+  await ensureSeeded(organizations, initial.organizations, "uid");
+
+  if (process.env.NODE_ENV !== "production" && process.env.DEMO_DATA !== "false") {
+    await ensureSeeded(students, demoSeed.students);
+    await ensureSeeded(opportunities, demoSeed.opportunities);
+    await ensureSeeded(db.collection("applications"), demoSeed.applications);
+    await ensureSeeded(db.collection("follows"), demoSeed.follows);
+    await ensureSeeded(db.collection("activity"), demoSeed.activity);
+  }
+
   await safeIndex(students, { uid: 1 }, { unique: true }); await safeIndex(students, { candidateOptIn: 1 }); await safeIndex(students, { marketOptIn: 1 });
   await safeIndex(opportunities, { organizationUid: 1 }); await safeIndex(opportunities, { companyKey: 1 }); await safeIndex(organizations, { uid: 1 }, { unique: true });
+  await safeIndex(db.collection("applications"), { uid: 1, opportunityId: 1 }, { unique: true });
+  await safeIndex(db.collection("follows"), { uid: 1, companyKey: 1 }, { unique: true });
+  await safeIndex(db.collection("activity"), { uid: 1, createdAt: -1 });
 }
 
 export async function getStudentByUid(uid) { return stripMongoId(await getDb().collection("students").findOne({ uid })); }
