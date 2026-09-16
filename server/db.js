@@ -1,11 +1,6 @@
-import fs from "node:fs";
-import path from "node:path";
-const dir = path.resolve(process.cwd(), "server/data");
-const file = path.join(dir, "skillbridge.json");
-fs.mkdirSync(dir, { recursive: true });
+import { getDb } from "./mongodb.js";
+
 const initial = {
-  nextStudentId: 2,
-  nextOpportunityId: 5,
   students: [
     {
       id: 1,
@@ -73,73 +68,109 @@ const initial = {
     },
   ],
 };
-function load() {
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, JSON.stringify(initial, null, 2));
-    return structuredClone(initial);
+
+function withoutMongoId(document) {
+  if (!document) return null;
+  const { _id, ...data } = document;
+  return data;
+}
+
+export async function seedDatabase() {
+  const db = getDb();
+  const students = db.collection("students");
+  const opportunities = db.collection("opportunities");
+
+  if ((await students.countDocuments()) === 0) {
+    await students.insertMany(initial.students);
   }
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
-    return structuredClone(initial);
+
+  if ((await opportunities.countDocuments()) === 0) {
+    await opportunities.insertMany(initial.opportunities);
   }
 }
-function save(data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+
+export async function listStudents() {
+  const db = getDb();
+  return (await db.collection("students").find({}).sort({ id: 1 }).toArray()).map(
+    withoutMongoId,
+  );
 }
-export function listStudents() {
-  return load().students;
+
+export async function getStudent(id) {
+  const db = getDb();
+  return withoutMongoId(await db.collection("students").findOne({ id }));
 }
-export function getStudent(id) {
-  return load().students.find((s) => s.id === id) || null;
-}
-export function createStudent(data) {
-  const db = load();
+
+export async function createStudent(data) {
+  const db = getDb();
+  const collection = db.collection("students");
+  const last = await collection.findOne({}, { sort: { id: -1 } });
   const student = {
-    id: db.nextStudentId++,
+    id: Number(last?.id || 0) + 1,
     name: data.name,
     headline: data.headline || "",
-    skills: data.skills || [],
-    interests: data.interests || [],
+    skills: Array.isArray(data.skills) ? data.skills : [],
+    interests: Array.isArray(data.interests) ? data.interests : [],
     experienceMonths: Number(data.experienceMonths || 0),
     preferredMode: data.preferredMode || "Flexible",
     bio: data.bio || "",
   };
-  db.students.unshift(student);
-  save(db);
+
+  await collection.insertOne(student);
   return student;
 }
-export function updateStudent(id, data) {
-  const db = load(),
-    index = db.students.findIndex((s) => s.id === id);
-  if (index < 0) return null;
-  db.students[index] = {
-    ...db.students[index],
-    ...data,
-    id,
+
+export async function updateStudent(id, data) {
+  const db = getDb();
+  const collection = db.collection("students");
+  const update = {
+    name: data.name,
+    headline: data.headline || "",
+    skills: Array.isArray(data.skills) ? data.skills : [],
+    interests: Array.isArray(data.interests) ? data.interests : [],
     experienceMonths: Number(data.experienceMonths || 0),
+    preferredMode: data.preferredMode || "Flexible",
+    bio: data.bio || "",
   };
-  save(db);
-  return db.students[index];
+
+  const result = await collection.findOneAndUpdate(
+    { id },
+    { $set: update },
+    { returnDocument: "after" },
+  );
+
+  return withoutMongoId(result);
 }
-export function listOpportunities() {
-  return load().opportunities;
+
+export async function listOpportunities() {
+  const db = getDb();
+  return (
+    await db.collection("opportunities").find({}).sort({ id: -1 }).toArray()
+  ).map(withoutMongoId);
 }
-export function createOpportunity(data) {
-  const db = load();
+
+export async function getOpportunity(id) {
+  const db = getDb();
+  return withoutMongoId(await db.collection("opportunities").findOne({ id }));
+}
+
+export async function createOpportunity(data) {
+  const db = getDb();
+  const collection = db.collection("opportunities");
+  const last = await collection.findOne({}, { sort: { id: -1 } });
   const opportunity = {
-    id: db.nextOpportunityId++,
+    id: Number(last?.id || 0) + 1,
     company: data.company,
     title: data.title,
     description: data.description,
-    skills: data.skills || [],
-    interests: data.interests || [],
+    skills: Array.isArray(data.skills) ? data.skills : [],
+    interests: Array.isArray(data.interests) ? data.interests : [],
     minExperienceMonths: Number(data.minExperienceMonths || 0),
     mode: data.mode || "Flexible",
     location: data.location || "Remote",
     stipend: data.stipend || "Unpaid / Not specified",
   };
-  db.opportunities.unshift(opportunity);
-  save(db);
+
+  await collection.insertOne(opportunity);
   return opportunity;
 }
