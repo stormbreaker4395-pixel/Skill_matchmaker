@@ -89,24 +89,63 @@ export async function seedDatabase() {
   }
 }
 
-export async function listStudents() {
+export async function listStudents(uid) {
   const db = getDb();
-  return (await db.collection("students").find({}).sort({ id: 1 }).toArray()).map(
-    withoutMongoId,
+  return (
+    await db
+      .collection("students")
+      .find({ uid })
+      .sort({ id: 1 })
+      .toArray()
+  ).map(withoutMongoId);
+}
+
+export async function getStudent(id, uid) {
+  const db = getDb();
+  return withoutMongoId(
+    await db.collection("students").findOne({ id, uid }),
   );
 }
 
-export async function getStudent(id) {
+export async function ensureStudentForUser(uid, email = "") {
   const db = getDb();
-  return withoutMongoId(await db.collection("students").findOne({ id }));
+  const collection = db.collection("students");
+
+  const existing = await collection.findOne({ uid });
+  if (existing) return withoutMongoId(existing);
+
+  const last = await collection.findOne({}, { sort: { id: -1 } });
+  const fallbackName =
+    String(email || "Student")
+      .split("@")[0]
+      .replace(/[._-]+/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase()) ||
+    "Student";
+
+  const student = {
+    id: Number(last?.id || 0) + 1,
+    uid,
+    name: fallbackName,
+    headline: "Student",
+    skills: [],
+    interests: [],
+    experienceMonths: 0,
+    preferredMode: "Flexible",
+    bio: "",
+  };
+
+  await collection.insertOne(student);
+  return withoutMongoId(student);
 }
 
-export async function createStudent(data) {
+export async function createStudent(data, uid) {
   const db = getDb();
   const collection = db.collection("students");
   const last = await collection.findOne({}, { sort: { id: -1 } });
+
   const student = {
     id: Number(last?.id || 0) + 1,
+    uid,
     name: data.name,
     headline: data.headline || "",
     skills: Array.isArray(data.skills) ? data.skills : [],
@@ -120,9 +159,10 @@ export async function createStudent(data) {
   return student;
 }
 
-export async function updateStudent(id, data) {
+export async function updateStudent(id, data, uid) {
   const db = getDb();
   const collection = db.collection("students");
+
   const update = {
     name: data.name,
     headline: data.headline || "",
@@ -134,7 +174,7 @@ export async function updateStudent(id, data) {
   };
 
   const result = await collection.findOneAndUpdate(
-    { id },
+    { id, uid },
     { $set: update },
     { returnDocument: "after" },
   );
@@ -145,19 +185,26 @@ export async function updateStudent(id, data) {
 export async function listOpportunities() {
   const db = getDb();
   return (
-    await db.collection("opportunities").find({}).sort({ id: -1 }).toArray()
+    await db
+      .collection("opportunities")
+      .find({})
+      .sort({ id: -1 })
+      .toArray()
   ).map(withoutMongoId);
 }
 
 export async function getOpportunity(id) {
   const db = getDb();
-  return withoutMongoId(await db.collection("opportunities").findOne({ id }));
+  return withoutMongoId(
+    await db.collection("opportunities").findOne({ id }),
+  );
 }
 
 export async function createOpportunity(data) {
   const db = getDb();
   const collection = db.collection("opportunities");
   const last = await collection.findOne({}, { sort: { id: -1 } });
+
   const opportunity = {
     id: Number(last?.id || 0) + 1,
     company: data.company,
